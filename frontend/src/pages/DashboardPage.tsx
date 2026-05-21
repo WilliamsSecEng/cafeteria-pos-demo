@@ -12,6 +12,7 @@ import {
   BarChart3,
   FolderKanban,
   UserCog,
+  ReceiptText,
 } from "lucide-react";
 import {
   getCurrentCash,
@@ -164,6 +165,12 @@ function DashboardPage() {
 >
   <ShoppingCart size={18} />
   Nueva venta
+</Link><Link
+  to="/historial-ventas"
+  className="flex items-center justify-center gap-2 rounded-2xl bg-stone-700 px-4 py-3 text-sm font-bold text-white transition hover:bg-stone-800"
+>
+  <ReceiptText size={18} />
+  Historial
 </Link>
 
 {isAdmin && (

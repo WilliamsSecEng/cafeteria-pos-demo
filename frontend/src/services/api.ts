@@ -175,6 +175,40 @@ export type SalesReport = {
   }>;
 };
 
+export type SaleStatus = "COMPLETED" | "CANCELLED";
+
+export type SaleItem = {
+  id: string;
+  quantity: number;
+  unitPrice: number | string;
+  subtotal: number | string;
+  product: {
+    id: string;
+    name: string;
+    sku: string | null;
+  };
+};
+
+export type Sale = {
+  id: string;
+  saleNumber: string;
+  subtotal: number | string;
+  discount: number | string;
+  total: number | string;
+  paymentMethod: PaymentMethod;
+  amountPaid: number | string | null;
+  changeAmount: number | string | null;
+  status: SaleStatus;
+  notes: string | null;
+  createdAt: string;
+  cashier: {
+    id: string;
+    fullName: string;
+    email: string;
+  };
+  items: SaleItem[];
+};
+
 type LoginPayload = {
   email: string;
   password: string;
@@ -650,6 +684,24 @@ export async function deleteUser(token: string, userId: string) {
     message: string;
   }>(`/users/${userId}`, {
     method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+export async function getSales(token: string, options?: { status?: SaleStatus }) {
+  const params = new URLSearchParams();
+
+  if (options?.status) {
+    params.set("status", options.status);
+  }
+
+  const queryString = params.toString();
+
+  return requestJson<{
+    ok: boolean;
+    sales: Sale[];
+  }>(`/sales${queryString ? `?${queryString}` : ""}`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },

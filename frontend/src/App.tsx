@@ -9,7 +9,7 @@ import ProductsAdminPage from "./pages/ProductsAdminPage";
 import CategoriesAdminPage from "./pages/CategoriesAdminPage";
 import UsersAdminPage from "./pages/UsersAdminPage";
 import { AdminRoute, ProtectedRoute } from "./components/RouteGuards";
-
+import SalesHistoryPage from "./pages/SalesHistoryPage";
 function App() {
   return (
     <Routes>
@@ -80,6 +80,14 @@ function App() {
       />
 
       <Route path="*" element={<Navigate to="/demo" replace />} />
+      <Route
+        path="/historial-ventas"
+        element={
+          <ProtectedRoute>
+            <SalesHistoryPage />
+          </ProtectedRoute>
+        }
+      />
     </Routes>
   );
 }
