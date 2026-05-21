@@ -707,3 +707,22 @@ export async function getSales(token: string, options?: { status?: SaleStatus })
     },
   });
 }
+export async function cancelSale(
+  token: string,
+  saleId: string,
+  reason?: string,
+) {
+  return requestJson<{
+    ok: boolean;
+    message: string;
+    sale: Sale;
+  }>(`/sales/${saleId}/cancel`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      reason,
+    }),
+  });
+}

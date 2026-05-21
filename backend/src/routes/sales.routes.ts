@@ -22,7 +22,9 @@ const createSaleSchema = z.object({
   discount: z.number().nonnegative().optional(),
   notes: z.string().max(500).optional(),
 });
-
+const cancelSaleSchema = z.object({
+  reason: z.string().trim().max(500).optional(),
+});
 function roundMoney(value: number) {
   return Math.round(value * 100) / 100;
 }
@@ -202,7 +204,136 @@ const sale = await prisma.sale.findUnique({
     next(error);
   }
 });
+router.patch("/:id/cancel", authMiddleware, async (req: AuthRequest, res, next) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        ok: false,
+        message: "Usuario no autenticado",
+      });
+    }
 
+    if (req.user.role !== "ADMIN") {
+      return res.status(403).json({
+        ok: false,
+        message: "Solo el administrador puede anular ventas",
+      });
+    }
+
+    const saleIdParam = req.params.id;
+
+    if (typeof saleIdParam !== "string") {
+      return res.status(400).json({
+        ok: false,
+        message: "ID de venta inválido",
+      });
+    }
+
+    const validation = cancelSaleSchema.safeParse(req.body);
+
+    if (!validation.success) {
+      return res.status(400).json({
+        ok: false,
+        message: "Datos de anulación inválidos",
+        errors: validation.error.flatten().fieldErrors,
+      });
+    }
+
+    const sale = await prisma.sale.findUnique({
+      where: {
+        id: saleIdParam,
+      },
+      include: {
+        items: {
+          include: {
+            product: {
+              select: {
+                id: true,
+                name: true,
+                trackStock: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!sale) {
+      return res.status(404).json({
+        ok: false,
+        message: "Venta no encontrada",
+      });
+    }
+
+    if (sale.status === SaleStatus.CANCELLED) {
+      return res.status(400).json({
+        ok: false,
+        message: "La venta ya fue anulada anteriormente",
+      });
+    }
+
+    const cancelReason = validation.data.reason?.trim();
+
+    const cancelledSale = await prisma.$transaction(async (tx) => {
+      const updatedSale = await tx.sale.update({
+        where: {
+          id: sale.id,
+        },
+        data: {
+          status: SaleStatus.CANCELLED,
+          notes: cancelReason
+            ? `${sale.notes ? `${sale.notes}\n` : ""}ANULADA: ${cancelReason}`
+            : `${sale.notes ? `${sale.notes}\n` : ""}ANULADA`,
+        },
+        include: {
+          cashier: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+            },
+          },
+          items: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  sku: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      for (const item of sale.items) {
+        if (item.product.trackStock) {
+          await tx.product.update({
+            where: {
+              id: item.product.id,
+            },
+            data: {
+              stock: {
+                increment: item.quantity,
+              },
+            },
+          });
+        }
+      }
+
+      return updatedSale;
+    });
+
+    return res.json({
+      ok: true,
+      message: "Venta anulada correctamente",
+      sale: cancelledSale,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 router.post("/", authMiddleware, async (req: AuthRequest, res, next) => {
   try {
     if (!req.user) {

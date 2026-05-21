@@ -3,14 +3,20 @@ import { Link, useNavigate } from "react-router";
 import {
   ArrowLeft,
   Coffee,
-  Eye,
   Printer,
   ReceiptText,
   RefreshCcw,
   Search,
   ShoppingCart,
+  Ban,
 } from "lucide-react";
-import { getSales, type PaymentMethod, type Sale } from "../services/api";
+import {
+  cancelSale,
+  getSales,
+  type PaymentMethod,
+  type Sale,
+  type User,
+} from "../services/api";
 
 function toMoney(value: number | string | null | undefined) {
   return Number(value ?? 0).toFixed(2);
@@ -259,39 +265,51 @@ function printSaleTicket(sale: Sale) {
 function SalesHistoryPage() {
   const navigate = useNavigate();
 
-  const [sales, setSales] = useState<Sale[]>([]);
-  const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
-  const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+const [sales, setSales] = useState<Sale[]>([]);
+const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+const [search, setSearch] = useState("");
+const [loading, setLoading] = useState(true);
+const [actionLoading, setActionLoading] = useState(false);
+const [errorMessage, setErrorMessage] = useState("");
+const [successMessage, setSuccessMessage] = useState("");
 
   const loadSales = useCallback(async () => {
-    const token = localStorage.getItem("cafeteria_token");
+  const token = localStorage.getItem("cafeteria_token");
+  const storedUser = localStorage.getItem("cafeteria_user");
 
-    if (!token) {
-      navigate("/login");
-      return;
-    }
+  if (!token || !storedUser) {
+    navigate("/login");
+    return;
+  }
 
-    try {
-      const response = await getSales(token, {
-        status: "COMPLETED",
-      });
+  try {
+    const parsedUser = JSON.parse(storedUser) as User;
+    setCurrentUser(parsedUser);
 
-      setSales(response.sales);
-      setSelectedSale((current) => current ?? response.sales[0] ?? null);
-      setErrorMessage("");
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "No se pudo cargar el historial de ventas",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [navigate]);
+    const response = await getSales(token);
 
+    setSales(response.sales);
+
+    setSelectedSale((current) => {
+      if (!current) {
+        return response.sales[0] ?? null;
+      }
+
+      return response.sales.find((sale) => sale.id === current.id) ?? response.sales[0] ?? null;
+    });
+
+    setErrorMessage("");
+  } catch (error) {
+    setErrorMessage(
+      error instanceof Error
+        ? error.message
+        : "No se pudo cargar el historial de ventas",
+    );
+  } finally {
+    setLoading(false);
+  }
+}, [navigate]);
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       void loadSales();
@@ -321,7 +339,54 @@ function SalesHistoryPage() {
   const totalFilteredAmount = useMemo(() => {
     return filteredSales.reduce((sum, sale) => sum + Number(sale.total), 0);
   }, [filteredSales]);
+    const isAdmin = currentUser?.role === "ADMIN";
+    async function handleCancelSale(sale: Sale) {
+  const token = localStorage.getItem("cafeteria_token");
 
+  if (!token) {
+    navigate("/login");
+    return;
+  }
+
+  if (!isAdmin) {
+    setErrorMessage("Solo el administrador puede anular ventas.");
+    return;
+  }
+
+  if (sale.status === "CANCELLED") {
+    setErrorMessage("Esta venta ya fue anulada.");
+    return;
+  }
+
+  const reason = window.prompt(
+    `Motivo de anulación para la venta ${sale.saleNumber}:`,
+    "Anulación solicitada por administración",
+  );
+
+  if (reason === null) {
+    return;
+  }
+
+  setErrorMessage("");
+  setSuccessMessage("");
+
+  try {
+    setActionLoading(true);
+
+    const response = await cancelSale(token, sale.id, reason.trim() || undefined);
+
+    setSuccessMessage(response.message);
+    setSelectedSale(response.sale);
+
+    await loadSales();
+  } catch (error) {
+    setErrorMessage(
+      error instanceof Error ? error.message : "No se pudo anular la venta",
+    );
+  } finally {
+    setActionLoading(false);
+  }
+}
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-orange-50 via-amber-50 to-stone-100 px-4">
@@ -381,6 +446,11 @@ function SalesHistoryPage() {
           <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
             {errorMessage}
           </div>
+        )}
+        {successMessage && (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700">
+                {successMessage}
+            </div>
         )}
 
         <section className="grid gap-5 md:grid-cols-3">
@@ -454,16 +524,28 @@ function SalesHistoryPage() {
                     type="button"
                     onClick={() => setSelectedSale(sale)}
                     className={`w-full rounded-2xl border p-4 text-left transition ${
-                      isSelected
-                        ? "border-orange-300 bg-orange-50"
-                        : "border-stone-100 bg-stone-50 hover:bg-orange-50/70"
+                        isSelected
+                            ? sale.status === "CANCELLED"
+                            ? "border-red-300 bg-red-50"
+                            : "border-orange-300 bg-orange-50"
+                            : sale.status === "CANCELLED"
+                            ? "border-red-100 bg-red-50/60 hover:bg-red-50"
+                            : "border-stone-100 bg-stone-50 hover:bg-orange-50/70"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-black text-stone-900">
-                          {sale.saleNumber}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-black text-stone-900">
+                                {sale.saleNumber}
+                            </p>
+
+                            {sale.status === "CANCELLED" && (
+                                <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-black text-red-700">
+                                Anulada
+                                </span>
+                            )}
+                        </div>
                         <p className="mt-1 text-sm text-stone-500">
                           {formatDate(sale.createdAt)}
                         </p>
@@ -499,23 +581,45 @@ function SalesHistoryPage() {
                     <p className="text-sm font-bold uppercase tracking-[0.2em] text-orange-600">
                       Detalle de venta
                     </p>
-                    <h2 className="text-2xl font-black text-stone-900">
-                      {selectedSale.saleNumber}
-                    </h2>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="text-2xl font-black text-stone-900">
+                            {selectedSale.saleNumber}
+                        </h2>
+
+                        {selectedSale.status === "CANCELLED" && (
+                            <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-black text-red-700">
+                            Venta anulada
+                            </span>
+                        )}
+                    </div>
                     <p className="text-sm text-stone-500">
                       {formatDate(selectedSale.createdAt)} ·{" "}
                       {selectedSale.cashier.fullName}
                     </p>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => printSaleTicket(selectedSale)}
-                    className="flex items-center justify-center gap-2 rounded-2xl bg-stone-900 px-5 py-3 text-sm font-black text-white transition hover:bg-stone-700"
-                  >
-                    <Printer size={18} />
-                    Reimprimir
-                  </button>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <button
+                        type="button"
+                        onClick={() => printSaleTicket(selectedSale)}
+                        className="flex items-center justify-center gap-2 rounded-2xl bg-stone-900 px-5 py-3 text-sm font-black text-white transition hover:bg-stone-700"
+                    >
+                        <Printer size={18} />
+                        Reimprimir
+                    </button>
+
+                    {isAdmin && selectedSale.status !== "CANCELLED" && (
+                        <button
+                        type="button"
+                        disabled={actionLoading}
+                        onClick={() => void handleCancelSale(selectedSale)}
+                        className="flex items-center justify-center gap-2 rounded-2xl bg-red-600 px-5 py-3 text-sm font-black text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                        <Ban size={18} />
+                        {actionLoading ? "Anulando..." : "Anular venta"}
+                        </button>
+                    )}
+                </div>
                 </div>
 
                 <div className="overflow-hidden rounded-2xl border border-stone-100">
@@ -602,6 +706,11 @@ function SalesHistoryPage() {
                       <strong>Nota:</strong> {selectedSale.notes}
                     </p>
                   )}
+                  {selectedSale.status === "CANCELLED" && (
+                        <p className="mt-3 rounded-xl bg-red-100 px-3 py-2 font-bold text-red-700">
+                            Esta venta fue anulada. No cuenta en reportes, resumen diario ni caja.
+                        </p>
+                    )}
                 </div>
               </>
             )}
