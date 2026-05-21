@@ -6,18 +6,92 @@ export type User = {
   email: string;
   role: string;
 };
+export type Role = {
+  id: string;
+  name: string;
+  createdAt?: string;
+  updatedAt?: string;
+  _count?: {
+    users: number;
+  };
+};
 
+export type SystemUser = {
+  id: string;
+  fullName: string;
+  email: string;
+  isActive: boolean;
+  roleId: string;
+  role: {
+    id: string;
+    name: string;
+  };
+  createdAt?: string;
+  updatedAt?: string;
+  _count?: {
+    sales: number;
+    cashSessions: number;
+  };
+};
+
+export type UserPayload = {
+  fullName: string;
+  email: string;
+  password: string;
+  roleId: string;
+  isActive: boolean;
+};
 export type Product = {
   id: string;
   name: string;
+  slug: string;
+  description: string | null;
+  sku: string | null;
   price: number | string;
+  cost: number | string | null;
+  imageUrl: string | null;
   stock: number;
+  minStock: number;
   trackStock: boolean;
+  isActive: boolean;
+  categoryId: string;
   category: {
     id: string;
     name: string;
     slug: string;
   };
+  createdAt?: string;
+  updatedAt?: string;
+};
+export type Category = {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  displayOrder: number;
+  isActive: boolean;
+  _count?: {
+    products: number;
+  };
+};
+export type CategoryPayload = {
+  name: string;
+  description?: string | null;
+  displayOrder: number;
+  isActive: boolean;
+};
+export type ProductPayload = {
+  name: string;
+  description?: string | null;
+  sku?: string | null;
+  price: number;
+  cost?: number | null;
+  imageUrl?: string | null;
+  stock: number;
+  minStock: number;
+  trackStock: boolean;
+  isActive: boolean;
+  categoryId: string;
 };
 
 export type CashMovementType = "INCOME" | "EXPENSE";
@@ -187,11 +261,31 @@ export async function getTodaySummary(token: string) {
   });
 }
 
-export async function getProducts() {
+export async function getProducts(options?: {
+  search?: string;
+  categoryId?: string;
+  active?: boolean;
+}) {
+  const params = new URLSearchParams();
+
+  if (options?.search) {
+    params.set("search", options.search);
+  }
+
+  if (options?.categoryId) {
+    params.set("categoryId", options.categoryId);
+  }
+
+  if (options?.active === false) {
+    params.set("active", "false");
+  }
+
+  const queryString = params.toString();
+
   return requestJson<{
     ok: boolean;
     products: Product[];
-  }>("/products");
+  }>(`/products${queryString ? `?${queryString}` : ""}`);
 }
 
 export async function createSale(token: string, payload: CreateSalePayload) {
@@ -204,8 +298,10 @@ export async function createSale(token: string, payload: CreateSalePayload) {
       subtotal: string | number;
       discount: string | number;
       total: string | number;
+      amountPaid: string | number;
       changeAmount: string | number;
       paymentMethod: string;
+      createdAt?: string;
     };
   }>("/sales", {
     method: "POST",
@@ -310,6 +406,250 @@ export async function getSalesReport(
   });
 
   return requestJson<SalesReport>(`/reports/sales?${params.toString()}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+export async function getCategories(options?: { active?: boolean }) {
+  const params = new URLSearchParams();
+
+  if (options?.active === false) {
+    params.set("active", "false");
+  }
+
+  const queryString = params.toString();
+
+  return requestJson<{
+    ok: boolean;
+    categories: Category[];
+  }>(`/categories${queryString ? `?${queryString}` : ""}`);
+}
+
+export async function createProduct(token: string, payload: ProductPayload) {
+  return requestJson<{
+    ok: boolean;
+    message: string;
+    product: Product;
+  }>("/products", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateProduct(
+  token: string,
+  productId: string,
+  payload: Partial<ProductPayload>,
+) {
+  return requestJson<{
+    ok: boolean;
+    message: string;
+    product: Product;
+  }>(`/products/${productId}`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateProductStatus(
+  token: string,
+  productId: string,
+  isActive: boolean,
+) {
+  return requestJson<{
+    ok: boolean;
+    message: string;
+    product: Product;
+  }>(`/products/${productId}/status`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      isActive,
+    }),
+  });
+}
+
+export async function deleteProduct(token: string, productId: string) {
+  return requestJson<{
+    ok: boolean;
+    message: string;
+  }>(`/products/${productId}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+export async function createCategory(token: string, payload: CategoryPayload) {
+  return requestJson<{
+    ok: boolean;
+    message: string;
+    category: Category;
+  }>("/categories", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateCategory(
+  token: string,
+  categoryId: string,
+  payload: Partial<CategoryPayload>,
+) {
+  return requestJson<{
+    ok: boolean;
+    message: string;
+    category: Category;
+  }>(`/categories/${categoryId}`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateCategoryStatus(
+  token: string,
+  categoryId: string,
+  isActive: boolean,
+) {
+  return requestJson<{
+    ok: boolean;
+    message: string;
+    category: Category;
+  }>(`/categories/${categoryId}/status`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      isActive,
+    }),
+  });
+}
+
+export async function deleteCategory(token: string, categoryId: string) {
+  return requestJson<{
+    ok: boolean;
+    message: string;
+  }>(`/categories/${categoryId}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+export async function getRoles(token: string) {
+  return requestJson<{
+    ok: boolean;
+    roles: Role[];
+  }>("/users/roles", {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export async function getUsers(
+  token: string,
+  options?: {
+    search?: string;
+    active?: boolean;
+  },
+) {
+  const params = new URLSearchParams();
+
+  if (options?.search) {
+    params.set("search", options.search);
+  }
+
+  if (options?.active === false) {
+    params.set("active", "false");
+  }
+
+  const queryString = params.toString();
+
+  return requestJson<{
+    ok: boolean;
+    users: SystemUser[];
+  }>(`/users${queryString ? `?${queryString}` : ""}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export async function createUser(token: string, payload: UserPayload) {
+  return requestJson<{
+    ok: boolean;
+    message: string;
+    user: SystemUser;
+  }>("/users", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateUser(
+  token: string,
+  userId: string,
+  payload: Partial<UserPayload>,
+) {
+  return requestJson<{
+    ok: boolean;
+    message: string;
+    user: SystemUser;
+  }>(`/users/${userId}`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateUserStatus(
+  token: string,
+  userId: string,
+  isActive: boolean,
+) {
+  return requestJson<{
+    ok: boolean;
+    message: string;
+    user: SystemUser;
+  }>(`/users/${userId}/status`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      isActive,
+    }),
+  });
+}
+
+export async function deleteUser(token: string, userId: string) {
+  return requestJson<{
+    ok: boolean;
+    message: string;
+  }>(`/users/${userId}`, {
+    method: "DELETE",
     headers: {
       Authorization: `Bearer ${token}`,
     },

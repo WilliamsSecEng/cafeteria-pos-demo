@@ -10,6 +10,8 @@ import {
   TrendingUp,
   Wallet,
   BarChart3,
+  FolderKanban,
+  UserCog,
 } from "lucide-react";
 import {
   getCurrentCash,
@@ -107,7 +109,7 @@ function DashboardPage() {
   const productsWithStockControl = useMemo(() => {
     return products.filter((product) => product.trackStock).length;
   }, [products]);
-
+  const isAdmin = user?.role === "ADMIN";
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-orange-50 via-amber-50 to-stone-100 px-4">
@@ -149,35 +151,65 @@ function DashboardPage() {
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <Link
-                    to="/caja"
-                    className="flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-700"
-                  >
-                    <Wallet size={18} />
-                    Caja
-                  </Link>
+  to="/caja"
+  className="flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-700"
+>
+  <Wallet size={18} />
+  Caja
+</Link>
 
-                  <Link
-                    to="/ventas"
-                    className="flex items-center justify-center gap-2 rounded-2xl bg-orange-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-orange-700"
-                  >
-                    <ShoppingCart size={18} />
-                    Nueva venta
-                  </Link>
-                    <Link
-                        to="/reportes"
-                        className="flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-blue-700"
-                        >
-                        <BarChart3 size={18} />
-                        Reportes
-                    </Link>
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    className="flex items-center justify-center gap-2 rounded-2xl bg-stone-900 px-4 py-3 text-sm font-bold text-white transition hover:bg-stone-700"
-                  >
-                    <LogOut size={18} />
-                    Salir
-                  </button>
+<Link
+  to="/ventas"
+  className="flex items-center justify-center gap-2 rounded-2xl bg-orange-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-orange-700"
+>
+  <ShoppingCart size={18} />
+  Nueva venta
+</Link>
+
+{isAdmin && (
+  <>
+    <Link
+      to="/productos"
+      className="flex items-center justify-center gap-2 rounded-2xl bg-purple-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-purple-700"
+    >
+      <Package size={18} />
+      Productos
+    </Link>
+
+    <Link
+      to="/categorias"
+      className="flex items-center justify-center gap-2 rounded-2xl bg-amber-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-amber-700"
+    >
+      <FolderKanban size={18} />
+      Categorías
+    </Link>
+
+    <Link
+      to="/usuarios"
+      className="flex items-center justify-center gap-2 rounded-2xl bg-rose-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-rose-700"
+    >
+      <UserCog size={18} />
+      Usuarios
+    </Link>
+
+    <Link
+      to="/reportes"
+      className="flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-blue-700"
+    >
+      <BarChart3 size={18} />
+      Reportes
+    </Link>
+  </>
+)}
+
+<button
+  type="button"
+  onClick={handleLogout}
+  className="flex items-center justify-center gap-2 rounded-2xl bg-stone-900 px-4 py-3 text-sm font-bold text-white transition hover:bg-stone-700"
+>
+  <LogOut size={18} />
+  Salir
+</button>
                 </div>
               </div>
             </div>
@@ -323,7 +355,8 @@ function DashboardPage() {
             </div>
           </article>
 
-          <article className="rounded-3xl border border-stone-200 bg-white p-6 shadow-xl shadow-stone-200/50">
+          {isAdmin && (
+  <article className="rounded-3xl border border-stone-200 bg-white p-6 shadow-xl shadow-stone-200/50">
             <h2 className="text-xl font-black text-stone-900">
               Estado comercial
             </h2>
@@ -365,6 +398,7 @@ function DashboardPage() {
               </div>
             </div>
           </article>
+)}
         </section>
 
         <section className="grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">

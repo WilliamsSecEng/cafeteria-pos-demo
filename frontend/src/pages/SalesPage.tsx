@@ -18,6 +18,25 @@ type CartItem = {
 };
 
 type PaymentMethod = "CASH" | "QR" | "CARD" | "MIXED";
+type ReceiptItem = {
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+};
+
+type ReceiptData = {
+  saleNumber: string;
+  date: string;
+  cashierName: string;
+  paymentMethod: PaymentMethod;
+  items: ReceiptItem[];
+  subtotal: number;
+  discount: number;
+  total: number;
+  amountPaid: number;
+  changeAmount: number;
+};
 
 function money(value: number) {
   return Math.round(value * 100) / 100;
@@ -41,7 +60,7 @@ function SalesPage() {
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
-
+  const [receipt, setReceipt] = useState<ReceiptData | null>(null);
   useEffect(() => {
     async function loadProducts() {
       const token = localStorage.getItem("cafeteria_token");
@@ -183,7 +202,208 @@ function SalesPage() {
       currentCart.filter((item) => item.product.id !== productId),
     );
   }
+  function paymentMethodLabel(method: PaymentMethod) {
+  const labels: Record<PaymentMethod, string> = {
+    CASH: "Efectivo",
+    QR: "QR",
+    CARD: "Tarjeta",
+    MIXED: "Mixto",
+  };
 
+  return labels[method];
+}
+
+function printReceipt(receiptData: ReceiptData) {
+  const ticketWindow = window.open("", "_blank", "width=420,height=700");
+
+  if (!ticketWindow) {
+    setErrorMessage("No se pudo abrir la ventana de impresión");
+    return;
+  }
+
+  const itemsHtml = receiptData.items
+    .map(
+      (item) => `
+        <tr>
+          <td>${item.name}</td>
+          <td style="text-align:center;">${item.quantity}</td>
+          <td style="text-align:right;">${item.unitPrice.toFixed(2)}</td>
+          <td style="text-align:right;">${item.subtotal.toFixed(2)}</td>
+        </tr>
+      `,
+    )
+    .join("");
+
+  ticketWindow.document.write(`
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Ticket ${receiptData.saleNumber}</title>
+        <style>
+          * {
+            box-sizing: border-box;
+          }
+
+          body {
+            margin: 0;
+            padding: 16px;
+            font-family: Arial, sans-serif;
+            color: #111;
+            background: #fff;
+          }
+
+          .ticket {
+            width: 100%;
+            max-width: 320px;
+            margin: 0 auto;
+          }
+
+          .center {
+            text-align: center;
+          }
+
+          h1 {
+            margin: 0;
+            font-size: 20px;
+          }
+
+          p {
+            margin: 4px 0;
+            font-size: 12px;
+          }
+
+          .line {
+            border-top: 1px dashed #333;
+            margin: 12px 0;
+          }
+
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+          }
+
+          th {
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 4px;
+          }
+
+          td {
+            padding: 4px 0;
+            vertical-align: top;
+          }
+
+          .total-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            margin: 4px 0;
+          }
+
+          .grand-total {
+            font-size: 18px;
+            font-weight: 800;
+          }
+
+          .footer {
+            margin-top: 14px;
+            text-align: center;
+            font-size: 12px;
+          }
+
+          @media print {
+            body {
+              padding: 0;
+            }
+
+            .ticket {
+              max-width: none;
+              width: 80mm;
+              padding: 6px;
+            }
+          }
+        </style>
+      </head>
+
+      <body>
+        <div class="ticket">
+          <div class="center">
+            <h1>Cafetería POS</h1>
+            <p>Sistema de ventas</p>
+            <p>Ticket: ${receiptData.saleNumber}</p>
+            <p>Fecha: ${receiptData.date}</p>
+            <p>Cajero: ${receiptData.cashierName}</p>
+          </div>
+
+          <div class="line"></div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th style="text-align:center;">Cant.</th>
+                <th style="text-align:right;">P/U</th>
+                <th style="text-align:right;">Subt.</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+
+          <div class="line"></div>
+
+          <div class="total-row">
+            <span>Subtotal</span>
+            <strong>Bs. ${receiptData.subtotal.toFixed(2)}</strong>
+          </div>
+
+          <div class="total-row">
+            <span>Descuento</span>
+            <strong>Bs. ${receiptData.discount.toFixed(2)}</strong>
+          </div>
+
+          <div class="total-row grand-total">
+            <span>Total</span>
+            <span>Bs. ${receiptData.total.toFixed(2)}</span>
+          </div>
+
+          <div class="total-row">
+            <span>Monto pagado</span>
+            <strong>Bs. ${receiptData.amountPaid.toFixed(2)}</strong>
+          </div>
+
+          <div class="total-row">
+            <span>Cambio</span>
+            <strong>Bs. ${receiptData.changeAmount.toFixed(2)}</strong>
+          </div>
+
+          <div class="total-row">
+            <span>Método</span>
+            <strong>${paymentMethodLabel(receiptData.paymentMethod)}</strong>
+          </div>
+
+          <div class="line"></div>
+
+          <div class="footer">
+            <p>Gracias por su compra</p>
+            <p>Vuelva pronto</p>
+          </div>
+        </div>
+
+        <script>
+          window.onload = function () {
+            window.print();
+          };
+        </script>
+      </body>
+    </html>
+  `);
+
+  ticketWindow.document.close();
+}
   async function handleCreateSale() {
     const token = localStorage.getItem("cafeteria_token");
 
@@ -223,7 +443,35 @@ function SalesPage() {
         discount,
         notes: notes.trim() || undefined,
       });
+        const storedUser = localStorage.getItem("cafeteria_user");
+        const currentUser = storedUser
+          ? (JSON.parse(storedUser) as { fullName: string })
+          : null;
 
+        const receiptItems: ReceiptItem[] = cart.map((item) => ({
+          name: item.product.name,
+          quantity: item.quantity,
+          unitPrice: productPrice(item.product),
+          subtotal: money(productPrice(item.product) * item.quantity),
+        }));
+
+        const newReceipt: ReceiptData = {
+          saleNumber: response.sale.saleNumber,
+          date: new Intl.DateTimeFormat("es-BO", {
+            dateStyle: "short",
+            timeStyle: "short",
+          }).format(new Date()),
+          cashierName: currentUser?.fullName ?? "Cajero",
+          paymentMethod,
+          items: receiptItems,
+          subtotal,
+          discount,
+          total,
+          amountPaid,
+          changeAmount: Number(response.sale.changeAmount),
+        };
+
+        setReceipt(newReceipt);
       setSuccessMessage(
         `Venta ${response.sale.saleNumber} registrada correctamente. Total: Bs. ${response.sale.total}`,
       );
@@ -280,10 +528,106 @@ function SalesPage() {
 
         {successMessage && (
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700">
-            {successMessage}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <span>{successMessage}</span>
+
+              {receipt && (
+                <button
+                  type="button"
+                  onClick={() => printReceipt(receipt)}
+                  className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-black text-white transition hover:bg-emerald-700"
+                >
+                  Imprimir ticket
+                </button>
+              )}
+            </div>
           </div>
         )}
+        {receipt && (
+            <section className="rounded-3xl border border-emerald-200 bg-white p-6 shadow-xl shadow-emerald-100/60">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-bold uppercase tracking-[0.2em] text-emerald-600">
+                    Último ticket
+                  </p>
+                  <h2 className="text-xl font-black text-stone-900">
+                    {receipt.saleNumber}
+                  </h2>
+                  <p className="text-sm text-stone-500">
+                    {receipt.date} · {receipt.cashierName}
+                  </p>
+                </div>
 
+                <button
+                  type="button"
+                  onClick={() => printReceipt(receipt)}
+                  className="rounded-2xl bg-stone-900 px-5 py-3 text-sm font-black text-white transition hover:bg-stone-700"
+                >
+                  Imprimir comprobante
+                </button>
+              </div>
+
+              <div className="overflow-hidden rounded-2xl border border-stone-100">
+                <table className="w-full border-collapse text-left text-sm">
+                  <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
+                    <tr>
+                      <th className="px-4 py-3">Producto</th>
+                      <th className="px-4 py-3">Cant.</th>
+                      <th className="px-4 py-3">P/U</th>
+                      <th className="px-4 py-3">Subtotal</th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-stone-100">
+                    {receipt.items.map((item) => (
+                      <tr key={`${item.name}-${item.quantity}`}>
+                        <td className="px-4 py-3 font-bold text-stone-800">
+                          {item.name}
+                        </td>
+                        <td className="px-4 py-3 text-stone-500">{item.quantity}</td>
+                        <td className="px-4 py-3 text-stone-500">
+                          Bs. {item.unitPrice.toFixed(2)}
+                        </td>
+                        <td className="px-4 py-3 font-black text-stone-900">
+                          Bs. {item.subtotal.toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-2xl bg-stone-50 p-4">
+                  <p className="text-xs font-bold uppercase text-stone-500">Subtotal</p>
+                  <p className="mt-1 text-lg font-black text-stone-900">
+                    Bs. {receipt.subtotal.toFixed(2)}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-stone-50 p-4">
+                  <p className="text-xs font-bold uppercase text-stone-500">Descuento</p>
+                  <p className="mt-1 text-lg font-black text-stone-900">
+                    Bs. {receipt.discount.toFixed(2)}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-stone-900 p-4 text-white">
+                  <p className="text-xs font-bold uppercase text-stone-300">Total</p>
+                  <p className="mt-1 text-lg font-black">
+                    Bs. {receipt.total.toFixed(2)}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-emerald-50 p-4">
+                  <p className="text-xs font-bold uppercase text-emerald-600">Cambio</p>
+                  <p className="mt-1 text-lg font-black text-emerald-700">
+                    Bs. {receipt.changeAmount.toFixed(2)}
+                  </p>
+                </div>
+              </div>
+            </section>
+          )}
         <section className="grid gap-6 lg:grid-cols-[1.35fr_0.85fr]">
           <article className="rounded-3xl border border-stone-200 bg-white p-6 shadow-xl shadow-stone-200/50">
             <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">

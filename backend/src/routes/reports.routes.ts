@@ -1,6 +1,6 @@
-import { Router } from "express";
+import { Router, type Response } from "express";
 import { prisma } from "../config/prisma.js";
-import { authMiddleware } from "../middlewares/auth.middleware.js";
+import { authMiddleware, type AuthRequest } from "../middlewares/auth.middleware.js";
 import { PaymentMethod, SaleStatus } from "../../generated/prisma/enums.js";
 
 const router = Router();
@@ -20,7 +20,25 @@ function getQueryString(value: unknown) {
 
   return "";
 }
+function ensureAdmin(req: AuthRequest, res: Response) {
+  if (!req.user) {
+    res.status(401).json({
+      ok: false,
+      message: "Usuario no autenticado",
+    });
+    return false;
+  }
 
+  if (req.user.role !== "ADMIN") {
+    res.status(403).json({
+      ok: false,
+      message: "No tienes permisos para ver reportes",
+    });
+    return false;
+  }
+
+  return true;
+}
 function getDateRange(fromQuery: unknown, toQuery: unknown) {
   const now = new Date();
 
@@ -44,8 +62,11 @@ function getDateRange(fromQuery: unknown, toQuery: unknown) {
   };
 }
 
-router.get("/sales", authMiddleware, async (req, res, next) => {
+router.get("/sales", authMiddleware, async (req: AuthRequest, res, next) => {
   try {
+        if (!ensureAdmin(req, res)) {
+      return;
+    }
     const { startDate, endDate } = getDateRange(req.query.from, req.query.to);
 
     const sales = await prisma.sale.findMany({
